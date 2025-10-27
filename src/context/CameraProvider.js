@@ -149,26 +149,37 @@ export function CameraProvider({ children }) {
 
   const stopRecording = async () => {
     if (!cameraRef.current || !state.isRecording) return;
-
+  
     try {
       // Haptic feedback for recording stop
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
-      const recording = await cameraRef.current.stopRecording();
+      console.log('About to stop recording...');
+      
+      // Use toggleRecordingAsync to stop recording
+      const recording = await cameraRef.current.toggleRecordingAsync();
+      
+      console.log('Recording stopped, result:', recording);
       
       dispatch({ type: ACTIONS.SET_RECORDING, payload: false });
-      dispatch({ type: ACTIONS.SET_RECORDING_URI, payload: recording.uri });
       
-      // Update the latest recording session
-      const sessions = [...state.recordingSessions];
-      if (sessions.length > 0) {
-        const latestSession = sessions[sessions.length - 1];
-        latestSession.endTime = new Date().toISOString();
-        latestSession.uri = recording.uri;
-        latestSession.completed = true;
-        latestSession.duration = new Date(latestSession.endTime) - new Date(latestSession.startTime);
+      // The recording object should now contain the video data
+      if (recording && recording.uri) {
+        dispatch({ type: ACTIONS.SET_RECORDING_URI, payload: recording.uri });
         
-        await AsyncStorage.setItem('recordingSessions', JSON.stringify(sessions));
+        // Update the latest recording session
+        const sessions = [...state.recordingSessions];
+        if (sessions.length > 0) {
+          const latestSession = sessions[sessions.length - 1];
+          latestSession.endTime = new Date().toISOString();
+          latestSession.uri = recording.uri;
+          latestSession.completed = true;
+          latestSession.duration = new Date(latestSession.endTime) - new Date(latestSession.startTime);
+          
+          await AsyncStorage.setItem('recordingSessions', JSON.stringify(sessions));
+        }
+      } else {
+        console.log('No recording URI found in result:', recording);
       }
       
       return recording;

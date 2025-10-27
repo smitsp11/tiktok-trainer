@@ -1,8 +1,12 @@
 // Configuration service for managing environment variables and app settings
 import Constants from 'expo-constants';
+import LOCAL_ENV from '../config/localEnv';
 
 class ConfigService {
   constructor() {
+    // Load local environment variables (from localEnv.js)
+    this.localEnv = LOCAL_ENV;
+    
     this.config = {
       // App Configuration
       appName: 'TikTok Trainer',
@@ -30,14 +34,39 @@ class ConfigService {
       debug: this.getEnvVar('DEBUG', __DEV__ ? 'true' : 'false') === 'true',
       logLevel: this.getEnvVar('LOG_LEVEL', __DEV__ ? 'debug' : 'info'),
     };
+    
+    // Log configuration on startup (without sensitive data)
+    this.logConfig();
+  }
+
+  // Load local environment variables from .env.local
+  loadLocalEnv() {
+    try {
+      // Return the local environment variables
+      return this.localEnv;
+    } catch (error) {
+      console.warn('Could not load local environment variables:', error);
+      return {};
+    }
   }
 
   // Get environment variable with fallback
   getEnvVar(key, defaultValue = '') {
-    // In Expo, environment variables are available through Constants.expoConfig.extra
-    // or Constants.manifest.extra depending on the Expo SDK version
+    // First check local environment variables (from .env.local)
+    if (this.localEnv[key]) {
+      return this.localEnv[key];
+    }
+    
+    // Then check Expo Constants
     const extra = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
-    return extra[key] || defaultValue;
+    const value = extra[key] || defaultValue;
+    
+    // Log when we're using defaults for important configs
+    if (value === defaultValue && ['JWT_SECRET', 'API_KEY', 'OPENAI_API_KEY', 'GOOGLE_MAPS_API_KEY'].includes(key)) {
+      console.warn(`⚠️  ${key} not configured, using default value`);
+    }
+    
+    return value;
   }
 
   // Get configuration value

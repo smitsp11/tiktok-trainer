@@ -63,7 +63,21 @@
     "extra": {
       "eas": {
         "projectId": "your-project-id-here"
-      }
+      },
+      "BACKEND_URL": "http://localhost:8000",
+      "API_TIMEOUT": "30000",
+      "NOTIFICATION_ENABLED": "true",
+      "NOTIFICATION_SCHEDULE_HOURS": "9,18",
+      "DEBUG": "true",
+      "LOG_LEVEL": "debug",
+      "JWT_SECRET": "",
+      "API_KEY": "",
+      "OPENAI_API_KEY": "",
+      "GOOGLE_MAPS_API_KEY": "",
+      "ANALYTICS_API_KEY": "",
+      "DATABASE_URL": "",
+      "REDIS_URL": "",
+      "CORS_ORIGINS": "http://localhost:3000,http://localhost:19006"
     }
   }
 }
