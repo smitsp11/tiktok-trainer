@@ -48,6 +48,26 @@ export default function CameraScreen({ navigation }) {
     }
   }, []);
 
+  // Force camera refresh when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      console.log('Camera screen focused - refreshing camera');
+      if (!cameraReady) {
+        activateCamera('manual');
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, cameraReady]);
+
+  // Reset camera when it becomes ready again
+  useEffect(() => {
+    if (cameraReady && !isRecording) {
+      console.log('Camera is ready for recording');
+      setShowControls(true);
+    }
+  }, [cameraReady, isRecording]);
+
   useEffect(() => {
     if (isRecording) {
       durationInterval.current = setInterval(() => {
@@ -67,6 +87,15 @@ export default function CameraScreen({ navigation }) {
       }
     };
   }, [isRecording]);
+
+  // Show video location when recording is complete
+  useEffect(() => {
+    if (recordingUri) {
+      console.log('📹 Video saved to:', recordingUri);
+      // You can add an alert here to show the user where the video was saved
+      // Alert.alert('Video Saved', `Video saved to: ${recordingUri}`);
+    }
+  }, [recordingUri]);
 
   const handleStartRecording = async () => {
     try {
@@ -91,7 +120,7 @@ export default function CameraScreen({ navigation }) {
 
       Alert.alert(
         'Recording Complete!',
-        `You recorded for ${recordingDuration} seconds. Great job!`,
+        `You recorded for ${recordingDuration} seconds. Great job!\n\nVideo saved to your gallery!`,
         [
           { text: 'Record Again', onPress: () => setRecordingDuration(0) },
           { text: 'Done', onPress: () => navigation.goBack() },

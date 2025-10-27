@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { Camera } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
+import * as MediaLibrary from 'expo-media-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CameraContext = createContext();
@@ -14,6 +15,7 @@ const ACTIONS = {
   SET_FLASH_MODE: 'SET_FLASH_MODE',
   SET_AUTO_ACTIVATION: 'SET_AUTO_ACTIVATION',
   ADD_RECORDING_SESSION: 'ADD_RECORDING_SESSION',
+  RESET_CAMERA_STATE: 'RESET_CAMERA_STATE',
 };
 
 const initialState = {
@@ -48,6 +50,13 @@ function cameraReducer(state, action) {
         ...state, 
         recordingSessions: [...state.recordingSessions, action.payload]
       };
+    case ACTIONS.RESET_CAMERA_STATE:
+      return {
+        ...state,
+        cameraReady: false,
+        isRecording: false,
+        recordingUri: null,
+      };
     default:
       return state;
   }
@@ -71,6 +80,12 @@ export function CameraProvider({ children }) {
         const { status: audioStatus } = await Camera.requestMicrophonePermissionsAsync();
         if (audioStatus !== 'granted') {
           console.warn('Microphone permission not granted');
+        }
+        
+        // Request media library permission for saving videos
+        const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync();
+        if (mediaStatus !== 'granted') {
+          console.warn('Media library permission not granted - videos won\'t be saved to gallery');
         }
       }
     } catch (error) {
@@ -99,6 +114,23 @@ export function CameraProvider({ children }) {
       dispatch({ type: ACTIONS.ADD_RECORDING_SESSION, payload: session });
     } catch (error) {
       console.error('Failed to save recording session:', error);
+    }
+  };
+
+  const saveVideoToGallery = async (videoUri) => {
+    try {
+      const { status } = await MediaLibrary.getPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('Media library permission not granted');
+        return null;
+      }
+
+      const asset = await MediaLibrary.createAssetAsync(videoUri);
+      console.log('✅ Video saved to gallery:', asset.uri);
+      return asset;
+    } catch (error) {
+      console.error('Failed to save video to gallery:', error);
+      return null;
     }
   };
 
@@ -167,17 +199,27 @@ export function CameraProvider({ children }) {
       if (recording && recording.uri) {
         dispatch({ type: ACTIONS.SET_RECORDING_URI, payload: recording.uri });
         
+        // Save video to gallery
+        const galleryAsset = await saveVideoToGallery(recording.uri);
+        
         // Update the latest recording session
         const sessions = [...state.recordingSessions];
         if (sessions.length > 0) {
           const latestSession = sessions[sessions.length - 1];
           latestSession.endTime = new Date().toISOString();
           latestSession.uri = recording.uri;
+          latestSession.galleryUri = galleryAsset?.uri || null;
           latestSession.completed = true;
           latestSession.duration = new Date(latestSession.endTime) - new Date(latestSession.startTime);
           
           await AsyncStorage.setItem('recordingSessions', JSON.stringify(sessions));
         }
+        
+        // Reset camera state for next recording
+        setTimeout(() => {
+          dispatch({ type: ACTIONS.RESET_CAMERA_STATE });
+        }, 1000);
+        
       } else {
         console.log('No recording URI found in result:', recording);
       }
