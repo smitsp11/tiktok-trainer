@@ -54,16 +54,115 @@ cd tiktok-trainer
 npm install
 ```
 
-3. Start the development server:
+3. Set up environment variables:
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit the .env file with your configuration
+# The app works offline by default, but you can configure optional services
+```
+
+4. Start the development server:
 ```bash
 npm start
 ```
+
+## 🔧 Environment Configuration
+
+The app is designed to work offline by default, but you can configure optional services through environment variables.
+
+### Required Configuration
+- No environment variables are required for basic functionality
+- The app works entirely offline with local storage
+
+### Optional Configuration
+
+#### Backend Services (Optional)
+If you want to use the analytics backend:
+
+```bash
+# Backend URL (default: http://localhost:8000)
+BACKEND_URL=http://localhost:8000
+
+# API timeout in milliseconds (default: 30000)
+API_TIMEOUT=30000
+
+# API key for backend authentication (optional)
+API_KEY=your-api-key-here
+```
+
+#### External Services (Optional)
+If you plan to add external services later:
+
+```bash
+# OpenAI API key (for AI features)
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Google Maps API key (for location features)
+GOOGLE_MAPS_API_KEY=your-google-maps-api-key-here
+
+# Analytics API key (for tracking)
+ANALYTICS_API_KEY=your-analytics-api-key-here
+```
+
+#### Notification Settings
+```bash
+# Enable/disable notifications (default: true)
+NOTIFICATION_ENABLED=true
+
+# Schedule notification hours (default: 9,18)
+NOTIFICATION_SCHEDULE_HOURS=9,18
+```
+
+### Backend Setup (Optional)
+
+If you want to use the analytics backend:
+
+1. Navigate to the backend directory:
+```bash
+cd backend
+```
+
+2. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Set up backend environment variables:
+```bash
+# Copy the example environment file
+cp env.example .env
+
+# Edit the .env file with your backend configuration
+```
+
+5. Run the backend server:
+```bash
+uvicorn main:app --reload
+```
+
+## 🔒 Security Notes
+
+- **Never commit `.env` files to version control**
+- The `.gitignore` file is configured to exclude environment files
+- Use strong, unique API keys for production
+- Rotate API keys regularly
+- The app works offline by default - external services are optional
+
+## 🚀 Running the App
 
 4. Run on your preferred platform:
 ```bash
 npm run ios     # For iOS
 npm run android # For Android
-npm run web     # For web (limited functionality)
+npm run web     # For Web
 ```
 
 ## 📱 Features Overview

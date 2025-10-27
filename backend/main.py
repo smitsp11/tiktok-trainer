@@ -5,17 +5,32 @@ from typing import List, Optional
 import uvicorn
 from datetime import datetime, timedelta
 import json
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configuration from environment variables
+DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'info')
+JWT_SECRET = os.getenv('JWT_SECRET', 'your-super-secret-jwt-key-change-in-production')
+API_KEY = os.getenv('API_KEY', '')
+DATABASE_URL = os.getenv('DATABASE_URL', '')
+REDIS_URL = os.getenv('REDIS_URL', '')
+CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
 
 app = FastAPI(
     title="TikTok Trainer API",
     description="Backend API for TikTok Trainer analytics and scheduling",
-    version="1.0.0"
+    version="1.0.0",
+    debug=DEBUG
 )
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,6 +70,20 @@ class Achievement(BaseModel):
     unlocked_at: datetime
     progress: Optional[dict] = None
 
+# Authentication dependency
+def verify_api_key(x_api_key: str = Depends(lambda: "")):
+    """Verify API key for protected endpoints"""
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return True
+
+# Optional authentication dependency
+def optional_auth(x_api_key: Optional[str] = None):
+    """Optional API key verification"""
+    if API_KEY and x_api_key and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return True
+
 # In-memory storage (replace with database in production)
 recording_sessions = []
 user_patterns = {}
@@ -71,7 +100,7 @@ async def health_check():
 
 # Analytics endpoints
 @app.post("/analytics/recording")
-async def log_recording_session(session: RecordingSession):
+async def log_recording_session(session: RecordingSession, _: bool = Depends(optional_auth)):
     """Log a recording session for analytics"""
     recording_sessions.append(session.dict())
     
