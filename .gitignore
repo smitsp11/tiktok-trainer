@@ -1,17 +1,23 @@
+# ==================================================
 # Dependencies
+# ==================================================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json
 
+# ==================================================
 # Expo
+# ==================================================
 .expo/
 .expo-shared/
 dist/
 web-build/
 
+# ==================================================
 # Native
+# ==================================================
 *.orig.*
 *.jks
 *.p8
@@ -20,19 +26,27 @@ web-build/
 *.mobileprovision
 *.keystore
 
+# ==================================================
 # Metro
+# ==================================================
 .metro-health-check*
 
+# ==================================================
 # Debug
+# ==================================================
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# ==================================================
 # macOS
+# ==================================================
 .DS_Store
 *.pem
 
+# ==================================================
 # Environment files - NEVER COMMIT THESE!
+# ==================================================
 .env
 .env*.local
 .env.local
@@ -40,18 +54,24 @@ yarn-error.*
 .env.test.local
 .env.production.local
 
+# ==================================================
 # Local configuration files with sensitive data
+# ==================================================
 src/config/localEnv.js
 backend/.env
 backend/env.local
 
+# ==================================================
 # API Keys and Secrets - IMPORTANT!
+# ==================================================
 **/apiKeys.js
 **/secrets.js
 **/*secret*.js
 **/*key*.json
 
+# ==================================================
 # Backup and temporary files
+# ==================================================
 *.backup
 *.backup.*
 *.old
@@ -63,10 +83,14 @@ App.backup.js
 App.old.js
 src/screens.backup/
 
-# typescript
+# ==================================================
+# TypeScript
+# ==================================================
 *.tsbuildinfo
 
+# ==================================================
 # Python
+# ==================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -89,15 +113,21 @@ wheels/
 *.egg
 MANIFEST
 
+# ==================================================
 # PyInstaller
+# ==================================================
 *.manifest
 *.spec
 
+# ==================================================
 # Installer logs
+# ==================================================
 pip-log.txt
 pip-delete-this-directory.txt
 
+# ==================================================
 # Unit test / coverage reports
+# ==================================================
 htmlcov/
 .tox/
 .coverage
@@ -109,41 +139,51 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# ==================================================
 # Translations
+# ==================================================
 *.mo
 *.pot
 
-# Django stuff:
+# ==================================================
+# Django / Flask / Misc. frameworks
+# ==================================================
 *.log
 local_settings.py
 db.sqlite3
-
-# Flask stuff:
 instance/
 .webassets-cache
-
-# Scrapy stuff:
 .scrapy
-
-# Sphinx documentation
 docs/_build/
 
+# ==================================================
 # PyBuilder
+# ==================================================
 target/
 
+# ==================================================
 # Jupyter Notebook
+# ==================================================
 .ipynb_checkpoints
 
+# ==================================================
 # pyenv
+# ==================================================
 .python-version
 
+# ==================================================
 # celery beat schedule file
+# ==================================================
 celerybeat-schedule
 
+# ==================================================
 # SageMath parsed files
+# ==================================================
 *.sage.py
 
+# ==================================================
 # Environments
+# ==================================================
 .env
 .venv
 env/
@@ -152,22 +192,9 @@ ENV/
 env.bak/
 venv.bak/
 
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
+# ==================================================
 # IDE and Editor files
+# ==================================================
 .vscode/
 .vscode-test/
 .idea/
@@ -182,7 +209,9 @@ dmypy.json
 .loadpath
 .externalToolBuilders/
 
+# ==================================================
 # OS specific files
+# ==================================================
 .DS_Store
 .DS_Store?
 ._*
@@ -192,23 +221,31 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 
+# ==================================================
 # Test and Development
+# ==================================================
 *.test.local.js
 *.dev.local.js
 test-results/
 coverage/
 
+# ==================================================
 # Build artifacts
+# ==================================================
 build/
 out/
 
+# ==================================================
 # User-specific files (shouldn't be in repo)
+# ==================================================
 TODO.local.md
 NOTES.md
 notes.txt
 scratch.js
 
+# ==================================================
 # Logs
+# ==================================================
 logs/
 *.log
 npm-debug.log*
@@ -217,36 +254,59 @@ yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
+# ==================================================
 # Runtime data
+# ==================================================
 pids/
 *.pid
 *.seed
 *.pid.lock
 
-# Optional npm cache directory
+# ==================================================
+# Optional caches
+# ==================================================
 .npm
-
-# Optional eslint cache
 .eslintcache
-
-# Optional stylelint cache
 .stylelintcache
 
+# ==================================================
 # Output of 'npm pack'
+# ==================================================
 *.tgz
 
+# ==================================================
 # dotenv environment variable files
+# ==================================================
 .env
 .env.development
 .env.test
 .env.production
 
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test
-
+# ==================================================
 # yarn v2
+# ==================================================
 .yarn/cache
 .yarn/unplugged
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# ==================================================
+# 🧩 Local-only documentation & setup scripts (do not push)
+# ==================================================
+DEMO_CHECKLIST.md
+ENVIRONMENT_SETUP.md
+FINAL_SUMMARY.md
+GITIGNORE_UPDATES.md
+IMPLEMENTATION_SUMMARY.md
+MIGRATION_GUIDE.md
+OPTIMIZATION_GUIDE.md
+SECURITY_SETUP.md
+SECURITY_STATUS.md
+SECURITY.md
+START_HERE.md
+setup-env.sh
+setup-secure-env.sh
+setup.sh
+App.optimized.js
+web.html
