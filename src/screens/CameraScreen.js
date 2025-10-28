@@ -60,11 +60,15 @@ export default function CameraScreen({ navigation }) {
     return unsubscribe;
   }, [navigation, cameraReady]);
 
-  // Reset camera when it becomes ready again
+  // Handle camera state changes
   useEffect(() => {
+    console.log('Camera state changed:', { cameraReady, isRecording });
     if (cameraReady && !isRecording) {
       console.log('Camera is ready for recording');
       setShowControls(true);
+    } else if (!cameraReady) {
+      console.log('Camera not ready, attempting activation');
+      activateCamera('manual');
     }
   }, [cameraReady, isRecording]);
 
@@ -118,9 +122,15 @@ export default function CameraScreen({ navigation }) {
         timestamp: new Date().toISOString(),
       });
 
+      // Check if video was saved to gallery
+      const videoSaved = recording && recording.uri;
+      const message = videoSaved 
+        ? `You recorded for ${recordingDuration} seconds. Great job!\n\nVideo saved to your gallery!`
+        : `You recorded for ${recordingDuration} seconds. Great job!\n\nNote: Video may not have saved to gallery. Check console for details.`;
+
       Alert.alert(
         'Recording Complete!',
-        `You recorded for ${recordingDuration} seconds. Great job!\n\nVideo saved to your gallery!`,
+        message,
         [
           { text: 'Record Again', onPress: () => setRecordingDuration(0) },
           { text: 'Done', onPress: () => navigation.goBack() },

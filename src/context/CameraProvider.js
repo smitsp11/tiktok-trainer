@@ -53,9 +53,9 @@ function cameraReducer(state, action) {
     case ACTIONS.RESET_CAMERA_STATE:
       return {
         ...state,
-        cameraReady: false,
         isRecording: false,
         recordingUri: null,
+        // Keep cameraReady: true so camera stays active
       };
     default:
       return state;
@@ -65,6 +65,7 @@ function cameraReducer(state, action) {
 export function CameraProvider({ children }) {
   const [state, dispatch] = useReducer(cameraReducer, initialState);
   const cameraRef = useRef(null);
+  const recordingPromiseRef = useRef(null);
 
   useEffect(() => {
     initializeCamera();
@@ -119,17 +120,26 @@ export function CameraProvider({ children }) {
 
   const saveVideoToGallery = async (videoUri) => {
     try {
+      console.log('🎥 Attempting to save video to gallery:', videoUri);
+      
       const { status } = await MediaLibrary.getPermissionsAsync();
+      console.log('📱 Media library permission status:', status);
+      
       if (status !== 'granted') {
-        console.warn('Media library permission not granted');
+        console.warn('❌ Media library permission not granted');
         return null;
       }
 
+      console.log('💾 Creating asset in media library...');
       const asset = await MediaLibrary.createAssetAsync(videoUri);
-      console.log('✅ Video saved to gallery:', asset.uri);
+      console.log('✅ Video saved to gallery successfully!');
+      console.log('📁 Gallery asset URI:', asset.uri);
+      console.log('📁 Gallery asset ID:', asset.id);
+      
       return asset;
     } catch (error) {
-      console.error('Failed to save video to gallery:', error);
+      console.error('❌ Failed to save video to gallery:', error);
+      console.error('❌ Error details:', error.message);
       return null;
     }
   };
@@ -155,11 +165,20 @@ export function CameraProvider({ children }) {
       // Haptic feedback for recording start
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
-      console.log('About to call toggleRecordingAsync...');
-      const recording = await cameraRef.current.toggleRecordingAsync();
+      console.log('About to call recordAsync with timeout...');
+      
+      // Start recording with a timeout (will auto-stop after 30 seconds)
+      const recordingPromise = cameraRef.current.recordAsync({
+        quality: '720p',
+        maxDuration: 30, // 30 seconds max
+        mute: false,
+      });
 
-      console.log('Recording started successfully:', recording);
+      console.log('Recording started successfully');
       dispatch({ type: ACTIONS.SET_RECORDING, payload: true });
+      
+      // Store the recording promise for later use
+      recordingPromiseRef.current = recordingPromise;
       
       // Save recording session
       const session = {
@@ -172,7 +191,7 @@ export function CameraProvider({ children }) {
       
       await saveRecordingSession(session);
       
-      return recording;
+      return recordingPromise;
     } catch (error) {
       console.error('Failed to start recording:', error);
       throw error;
@@ -180,7 +199,13 @@ export function CameraProvider({ children }) {
   };
 
   const stopRecording = async () => {
-    if (!cameraRef.current || !state.isRecording) return;
+    if (!state.isRecording || !recordingPromiseRef.current) {
+      console.log('Cannot stop recording:', {
+        isRecording: state.isRecording,
+        hasPromise: !!recordingPromiseRef.current
+      });
+      return;
+    }
   
     try {
       // Haptic feedback for recording stop
@@ -188,19 +213,31 @@ export function CameraProvider({ children }) {
       
       console.log('About to stop recording...');
       
-      // Use toggleRecordingAsync to stop recording
-      const recording = await cameraRef.current.toggleRecordingAsync();
+      // Just wait for the recording to complete naturally
+      // The recording will auto-stop after maxDuration (30 seconds)
+      const recording = await recordingPromiseRef.current;
       
       console.log('Recording stopped, result:', recording);
       
       dispatch({ type: ACTIONS.SET_RECORDING, payload: false });
       
+      // Clear the recording promise
+      recordingPromiseRef.current = null;
+      
       // The recording object should now contain the video data
       if (recording && recording.uri) {
+        console.log('🎬 Recording completed with URI:', recording.uri);
         dispatch({ type: ACTIONS.SET_RECORDING_URI, payload: recording.uri });
         
         // Save video to gallery
+        console.log('💾 Starting gallery save process...');
         const galleryAsset = await saveVideoToGallery(recording.uri);
+        
+        if (galleryAsset) {
+          console.log('🎉 Video successfully saved to gallery!');
+        } else {
+          console.log('⚠️ Video save to gallery failed');
+        }
         
         // Update the latest recording session
         const sessions = [...state.recordingSessions];
@@ -215,13 +252,11 @@ export function CameraProvider({ children }) {
           await AsyncStorage.setItem('recordingSessions', JSON.stringify(sessions));
         }
         
-        // Reset camera state for next recording
-        setTimeout(() => {
-          dispatch({ type: ACTIONS.RESET_CAMERA_STATE });
-        }, 1000);
+        // Reset camera state for next recording (immediately)
+        dispatch({ type: ACTIONS.RESET_CAMERA_STATE });
         
       } else {
-        console.log('No recording URI found in result:', recording);
+        console.log('❌ No recording URI found in result:', recording);
       }
       
       return recording;
@@ -248,9 +283,14 @@ export function CameraProvider({ children }) {
   };
 
   const activateCamera = async (reason = 'manual') => {
+    console.log('🎥 Activating camera, reason:', reason);
+    
     if (!state.hasPermission) {
       await initializeCamera();
     }
+    
+    // Set camera as ready
+    dispatch({ type: ACTIONS.SET_CAMERA_READY, payload: true });
     
     // Haptic feedback for camera activation
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
