@@ -118,24 +118,43 @@ export function CameraProvider({ children }) {
     }
   };
 
+  const ensureMediaLibraryPermission = async () => {
+    const permission = await MediaLibrary.getPermissionsAsync();
+
+    if (permission.status === 'granted') {
+      return true;
+    }
+
+    if (permission.canAskAgain) {
+      const request = await MediaLibrary.requestPermissionsAsync();
+      return request.status === 'granted';
+    }
+
+    return false;
+  };
+
   const saveVideoToGallery = async (videoUri) => {
     try {
       console.log('🎥 Attempting to save video to gallery:', videoUri);
-      
-      const { status } = await MediaLibrary.getPermissionsAsync();
-      console.log('📱 Media library permission status:', status);
-      
-      if (status !== 'granted') {
+
+      const hasPermission = await ensureMediaLibraryPermission();
+      console.log('📱 Media library permission granted:', hasPermission);
+
+      if (!hasPermission) {
         console.warn('❌ Media library permission not granted');
         return null;
       }
 
-      console.log('💾 Creating asset in media library...');
-      const asset = await MediaLibrary.createAssetAsync(videoUri);
+      console.log('💾 Saving asset to media library...');
+      const assetId = await MediaLibrary.saveToLibraryAsync(videoUri);
+
+      // Fetch the saved asset so downstream consumers have metadata
+      const asset = await MediaLibrary.getAssetAsync(assetId);
+
       console.log('✅ Video saved to gallery successfully!');
       console.log('📁 Gallery asset URI:', asset.uri);
       console.log('📁 Gallery asset ID:', asset.id);
-      
+
       return asset;
     } catch (error) {
       console.error('❌ Failed to save video to gallery:', error);
@@ -206,24 +225,27 @@ export function CameraProvider({ children }) {
       });
       return;
     }
-  
+
+    let recording = null;
+
     try {
       // Haptic feedback for recording stop
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
+
       console.log('About to stop recording...');
-      
-      // Just wait for the recording to complete naturally
-      // The recording will auto-stop after maxDuration (30 seconds)
-      const recording = await recordingPromiseRef.current;
-      
+
+      if (!cameraRef.current) {
+        throw new Error('Camera reference lost before stopping recording');
+      }
+
+      // Trigger camera stop so the pending promise resolves with the recording
+      cameraRef.current.stopRecording();
+
+      // Wait for the underlying promise that was created during startRecording
+      recording = await recordingPromiseRef.current;
+
       console.log('Recording stopped, result:', recording);
-      
-      dispatch({ type: ACTIONS.SET_RECORDING, payload: false });
-      
-      // Clear the recording promise
-      recordingPromiseRef.current = null;
-      
+
       // The recording object should now contain the video data
       if (recording && recording.uri) {
         console.log('🎬 Recording completed with URI:', recording.uri);
@@ -258,11 +280,14 @@ export function CameraProvider({ children }) {
       } else {
         console.log('❌ No recording URI found in result:', recording);
       }
-      
+
       return recording;
     } catch (error) {
       console.error('Failed to stop recording:', error);
       throw error;
+    } finally {
+      dispatch({ type: ACTIONS.SET_RECORDING, payload: false });
+      recordingPromiseRef.current = null;
     }
   };
 
