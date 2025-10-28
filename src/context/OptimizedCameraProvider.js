@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
+// Optimized Camera Provider with better performance and state management
+import React, { createContext, useContext, useReducer, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Camera } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as MediaLibrary from 'expo-media-library';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Storage from '../utils/storage';
+import { APP_CONFIG } from '../utils/constants';
 
 const CameraContext = createContext();
 
@@ -17,6 +19,7 @@ const ACTIONS = {
   ADD_RECORDING_SESSION: 'ADD_RECORDING_SESSION',
   SET_RECORDING_SESSIONS: 'SET_RECORDING_SESSIONS',
   RESET_CAMERA_STATE: 'RESET_CAMERA_STATE',
+  SET_LOADING: 'SET_LOADING',
 };
 
 const initialState = {
@@ -28,59 +31,68 @@ const initialState = {
   flashMode: 'off',
   autoActivation: true,
   recordingSessions: [],
+  loading: false,
 };
 
 function cameraReducer(state, action) {
   switch (action.type) {
     case ACTIONS.SET_CAMERA_PERMISSION:
       return { ...state, hasPermission: action.payload };
+    
     case ACTIONS.SET_CAMERA_READY:
       return { ...state, cameraReady: action.payload };
+    
     case ACTIONS.SET_RECORDING:
       return { ...state, isRecording: action.payload };
+    
     case ACTIONS.SET_RECORDING_URI:
       return { ...state, recordingUri: action.payload };
+    
     case ACTIONS.SET_CAMERA_TYPE:
       return { ...state, cameraType: action.payload };
+    
     case ACTIONS.SET_FLASH_MODE:
       return { ...state, flashMode: action.payload };
+    
     case ACTIONS.SET_AUTO_ACTIVATION:
       return { ...state, autoActivation: action.payload };
+    
     case ACTIONS.ADD_RECORDING_SESSION:
       return {
         ...state,
         recordingSessions: [...state.recordingSessions, action.payload]
+          .slice(-APP_CONFIG.MAX_RECORDING_SESSIONS)
       };
+    
     case ACTIONS.SET_RECORDING_SESSIONS:
-      return {
-        ...state,
-        recordingSessions: action.payload,
-      };
+      return { ...state, recordingSessions: action.payload };
+    
     case ACTIONS.RESET_CAMERA_STATE:
       return {
         ...state,
         isRecording: false,
         recordingUri: null,
-        // Keep cameraReady: true so camera stays active
       };
+    
+    case ACTIONS.SET_LOADING:
+      return { ...state, loading: action.payload };
+    
     default:
       return state;
   }
 }
 
-export function CameraProvider({ children }) {
+export function OptimizedCameraProvider({ children }) {
   const [state, dispatch] = useReducer(cameraReducer, initialState);
   const cameraRef = useRef(null);
   const recordingPromiseRef = useRef(null);
   const isRecordingRef = useRef(false);
 
-  useEffect(() => {
-    initializeCamera();
-    loadRecordingSessions();
-  }, []);
-
-  const initializeCamera = async () => {
+  // Memoized initialization
+  const initializeCamera = useCallback(async () => {
     try {
+      dispatch({ type: ACTIONS.SET_LOADING, payload: true });
+      
       const { status } = await Camera.requestCameraPermissionsAsync();
       dispatch({ type: ACTIONS.SET_CAMERA_PERMISSION, payload: status === 'granted' });
       
@@ -90,131 +102,84 @@ export function CameraProvider({ children }) {
           console.warn('Microphone permission not granted');
         }
         
-        // Request media library permission for saving videos
         const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync();
         if (mediaStatus !== 'granted') {
-          console.warn('Media library permission not granted - videos won\'t be saved to gallery');
+          console.warn('Media library permission not granted');
         }
       }
     } catch (error) {
       console.error('Camera initialization failed:', error);
+    } finally {
+      dispatch({ type: ACTIONS.SET_LOADING, payload: false });
     }
-  };
+  }, []);
 
-  const loadRecordingSessions = async () => {
-    try {
-      const sessions = await AsyncStorage.getItem('recordingSessions');
-      if (sessions) {
-        const parsedSessions = JSON.parse(sessions);
-        if (Array.isArray(parsedSessions)) {
-          dispatch({
-            type: ACTIONS.SET_RECORDING_SESSIONS,
-            payload: parsedSessions,
-          });
-        } else {
-          console.warn('Recording sessions stored in unexpected format, resetting.');
-          await AsyncStorage.removeItem('recordingSessions');
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load recording sessions:', error);
+  const loadRecordingSessions = useCallback(async () => {
+    const sessions = await Storage.getRecordingSessions();
+    if (Array.isArray(sessions)) {
+      dispatch({ type: ACTIONS.SET_RECORDING_SESSIONS, payload: sessions });
     }
-  };
+  }, []);
 
-  const saveRecordingSession = async (session) => {
-    try {
-      const sessions = [...state.recordingSessions, session];
-      await AsyncStorage.setItem('recordingSessions', JSON.stringify(sessions));
-      dispatch({ type: ACTIONS.ADD_RECORDING_SESSION, payload: session });
-    } catch (error) {
-      console.error('Failed to save recording session:', error);
-    }
-  };
+  useEffect(() => {
+    initializeCamera();
+    loadRecordingSessions();
+  }, [initializeCamera, loadRecordingSessions]);
 
-  const ensureMediaLibraryPermission = async () => {
+  // Memoized media library permission check
+  const ensureMediaLibraryPermission = useCallback(async () => {
     const permission = await MediaLibrary.getPermissionsAsync();
-
-    if (permission.status === 'granted') {
-      return true;
-    }
-
+    if (permission.status === 'granted') return true;
     if (permission.canAskAgain) {
       const request = await MediaLibrary.requestPermissionsAsync();
       return request.status === 'granted';
     }
-
     return false;
-  };
+  }, []);
 
-  const saveVideoToGallery = async (videoUri) => {
+  const saveVideoToGallery = useCallback(async (videoUri) => {
     try {
-      console.log('🎥 Attempting to save video to gallery:', videoUri);
-
       const hasPermission = await ensureMediaLibraryPermission();
-      console.log('📱 Media library permission granted:', hasPermission);
-
       if (!hasPermission) {
-        console.warn('❌ Media library permission not granted');
+        console.warn('Media library permission not granted');
         return null;
       }
 
-      console.log('💾 Saving asset to media library...');
       const assetId = await MediaLibrary.saveToLibraryAsync(videoUri);
-
-      // Fetch the saved asset so downstream consumers have metadata
       const asset = await MediaLibrary.getAssetAsync(assetId);
-
-      console.log('✅ Video saved to gallery successfully!');
-      console.log('📁 Gallery asset URI:', asset.uri);
-      console.log('📁 Gallery asset ID:', asset.id);
       
+      console.log('✅ Video saved to gallery successfully!');
       return asset;
     } catch (error) {
-      console.error('❌ Failed to save video to gallery:', error);
-      console.error('❌ Error details:', error.message);
+      console.error('Failed to save video to gallery:', error);
       return null;
     }
-  };
+  }, [ensureMediaLibraryPermission]);
 
-  const startRecording = async () => {
-    console.log('📹 Attempting to start recording...');
-    console.log('Current state:', { 
-      hasRef: !!cameraRef.current, 
-      isRecording: state.isRecording, 
-      cameraReady: state.cameraReady 
-    });
+  const saveRecordingSession = useCallback(async (session) => {
+    const sessions = [...state.recordingSessions, session];
+    await Storage.setRecordingSessions(sessions);
+    dispatch({ type: ACTIONS.ADD_RECORDING_SESSION, payload: session });
+  }, [state.recordingSessions]);
 
+  const startRecording = useCallback(async () => {
     if (!cameraRef.current || isRecordingRef.current || !state.cameraReady) {
-      console.log('❌ Camera not ready for recording:', { 
-        hasRef: !!cameraRef.current, 
-        isRecording: isRecordingRef.current, 
-        cameraReady: state.cameraReady 
-      });
+      console.log('Camera not ready for recording');
       return;
     }
 
     try {
-      // Haptic feedback for recording start
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
-      console.log('🎬 Starting camera recording...');
-      
-      // Mark as recording BEFORE starting
       isRecordingRef.current = true;
       dispatch({ type: ACTIONS.SET_RECORDING, payload: true });
       
-      // Start recording without any options - simplest approach
       cameraRef.current.recordAsync().then(async (video) => {
-        console.log('✅ Recording completed with video:', video);
-        
         if (video && video.uri) {
-          console.log('📁 Video URI:', video.uri);
           dispatch({ type: ACTIONS.SET_RECORDING_URI, payload: video.uri });
           
-          // Save to gallery
           const galleryAsset = await saveVideoToGallery(video.uri);
           
-          // Update session
           const sessions = [...state.recordingSessions];
           if (sessions.length > 0) {
             const latestSession = sessions[sessions.length - 1];
@@ -223,20 +188,17 @@ export function CameraProvider({ children }) {
             latestSession.galleryUri = galleryAsset?.uri || null;
             latestSession.completed = true;
             latestSession.duration = new Date(latestSession.endTime) - new Date(latestSession.startTime);
-            await AsyncStorage.setItem('recordingSessions', JSON.stringify(sessions));
+            await Storage.setRecordingSessions(sessions);
           }
-          
-          console.log('🎉 Video saved successfully!');
         }
       }).catch((error) => {
-        console.error('❌ Recording error:', error);
+        console.error('Recording error:', error);
       }).finally(() => {
         isRecordingRef.current = false;
         dispatch({ type: ACTIONS.SET_RECORDING, payload: false });
         dispatch({ type: ACTIONS.RESET_CAMERA_STATE });
       });
       
-      // Save recording session
       const session = {
         id: Date.now().toString(),
         startTime: new Date().toISOString(),
@@ -246,75 +208,55 @@ export function CameraProvider({ children }) {
       };
       
       await saveRecordingSession(session);
-      
-      console.log('✅ Recording started successfully');
     } catch (error) {
-      console.error('❌ Failed to start recording:', error);
+      console.error('Failed to start recording:', error);
       isRecordingRef.current = false;
       dispatch({ type: ACTIONS.SET_RECORDING, payload: false });
       throw error;
     }
-  };
+  }, [state.cameraReady, state.recordingSessions, saveRecordingSession, saveVideoToGallery]);
 
-  const stopRecording = async () => {
+  const stopRecording = useCallback(async () => {
     if (!isRecordingRef.current || !cameraRef.current) {
-      console.log('❌ Cannot stop recording:', {
-        isRecording: isRecordingRef.current,
-        hasRef: !!cameraRef.current
-      });
       return null;
     }
   
     try {
-      // Haptic feedback for recording stop
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      console.log('🛑 Stopping recording...');
-
-      // Simply call stopRecording - the .then() handler in startRecording will handle the rest
       cameraRef.current.stopRecording();
-      console.log('✅ Stop signal sent to camera');
-      
-      // Return immediately - the video saving happens in the startRecording promise handler
       return { stopped: true };
     } catch (error) {
-      console.error('❌ Failed to stop recording:', error);
+      console.error('Failed to stop recording:', error);
       isRecordingRef.current = false;
       dispatch({ type: ACTIONS.SET_RECORDING, payload: false });
       throw error;
     }
-  };
+  }, []);
 
-  const toggleCameraType = () => {
+  const toggleCameraType = useCallback(() => {
     const newType = state.cameraType === 'back' ? 'front' : 'back';
     dispatch({ type: ACTIONS.SET_CAMERA_TYPE, payload: newType });
-  };
+  }, [state.cameraType]);
 
-  const toggleFlashMode = () => {
+  const toggleFlashMode = useCallback(() => {
     const modes = ['off', 'on', 'auto'];
     const currentIndex = modes.indexOf(state.flashMode);
     const nextIndex = (currentIndex + 1) % modes.length;
     dispatch({ type: ACTIONS.SET_FLASH_MODE, payload: modes[nextIndex] });
-  };
+  }, [state.flashMode]);
 
-  const setCameraReady = (ready) => {
+  const setCameraReady = useCallback((ready) => {
     dispatch({ type: ACTIONS.SET_CAMERA_READY, payload: ready });
-  };
+  }, []);
 
-  const activateCamera = async (reason = 'manual') => {
-    console.log('🎥 Activating camera, reason:', reason);
-    
+  const activateCamera = useCallback(async (reason = 'manual') => {
     if (!state.hasPermission) {
       await initializeCamera();
     }
     
-    // Set camera as ready
     dispatch({ type: ACTIONS.SET_CAMERA_READY, payload: true });
-    
-    // Haptic feedback for camera activation
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    // Log activation event
     const activationEvent = {
       timestamp: new Date().toISOString(),
       reason,
@@ -322,22 +264,22 @@ export function CameraProvider({ children }) {
     };
     
     try {
-      const activations = await AsyncStorage.getItem('cameraActivations') || '[]';
-      const parsedActivations = JSON.parse(activations);
-      parsedActivations.push(activationEvent);
-      await AsyncStorage.setItem('cameraActivations', JSON.stringify(parsedActivations));
+      const activations = await Storage.getItem(Storage.STORAGE_KEYS.CAMERA_ACTIVATIONS, []);
+      activations.push(activationEvent);
+      await Storage.setItem(Storage.STORAGE_KEYS.CAMERA_ACTIVATIONS, activations);
     } catch (error) {
       console.error('Failed to log camera activation:', error);
     }
-  };
+  }, [state.hasPermission, initializeCamera]);
 
-  const deactivateCamera = () => {
+  const deactivateCamera = useCallback(() => {
     dispatch({ type: ACTIONS.SET_CAMERA_READY, payload: false });
     dispatch({ type: ACTIONS.SET_RECORDING, payload: false });
     dispatch({ type: ACTIONS.SET_RECORDING_URI, payload: null });
-  };
+  }, []);
 
-  const value = {
+  // Memoized context value
+  const value = useMemo(() => ({
     ...state,
     cameraRef,
     startRecording,
@@ -348,7 +290,17 @@ export function CameraProvider({ children }) {
     deactivateCamera,
     setCameraReady,
     saveRecordingSession,
-  };
+  }), [
+    state,
+    startRecording,
+    stopRecording,
+    toggleCameraType,
+    toggleFlashMode,
+    activateCamera,
+    deactivateCamera,
+    setCameraReady,
+    saveRecordingSession,
+  ]);
 
   return (
     <CameraContext.Provider value={value}>
@@ -360,7 +312,8 @@ export function CameraProvider({ children }) {
 export const useCamera = () => {
   const context = useContext(CameraContext);
   if (!context) {
-    throw new Error('useCamera must be used within a CameraProvider');
+    throw new Error('useCamera must be used within an OptimizedCameraProvider');
   }
   return context;
 };
+
